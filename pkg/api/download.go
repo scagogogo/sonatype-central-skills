@@ -26,6 +26,11 @@ const (
 	SOURCES = "sources.jar"
 	JAVADOC = "javadoc.jar"
 	TESTS   = "tests.jar"
+
+	// SBOM (Software Bill of Materials) 文件扩展名
+	CYCLONEDX_JSON = "cyclonedx.json"
+	CYCLONEDX_XML  = "cyclonedx.xml"
+	SPDX_JSON      = "spdx.json"
 )
 
 // Download 从Maven中央仓库下载指定路径的文件
@@ -538,13 +543,16 @@ type ArtifactFile struct {
 
 // 预定义的常用制品文件类型
 var (
-	PomFile     = ArtifactFile{Type: "POM", Extension: POM}
-	JarFile     = ArtifactFile{Type: "JAR", Extension: JAR}
-	SourcesFile = ArtifactFile{Type: "SOURCES", Extension: JAR, Classifier: "sources"}
-	JavadocFile = ArtifactFile{Type: "JAVADOC", Extension: JAR, Classifier: "javadoc"}
-	TestsFile   = ArtifactFile{Type: "TESTS", Extension: JAR, Classifier: "tests"}
-	WarFile     = ArtifactFile{Type: "WAR", Extension: WAR}
-	AarFile     = ArtifactFile{Type: "AAR", Extension: AAR}
+	PomFile          = ArtifactFile{Type: "POM", Extension: POM}
+	JarFile          = ArtifactFile{Type: "JAR", Extension: JAR}
+	SourcesFile      = ArtifactFile{Type: "SOURCES", Extension: JAR, Classifier: "sources"}
+	JavadocFile      = ArtifactFile{Type: "JAVADOC", Extension: JAR, Classifier: "javadoc"}
+	TestsFile        = ArtifactFile{Type: "TESTS", Extension: JAR, Classifier: "tests"}
+	WarFile          = ArtifactFile{Type: "WAR", Extension: WAR}
+	AarFile          = ArtifactFile{Type: "AAR", Extension: AAR}
+	CycloneDXJsonFile = ArtifactFile{Type: "CYCLONEDX_JSON", Extension: CYCLONEDX_JSON}
+	CycloneDXXmlFile  = ArtifactFile{Type: "CYCLONEDX_XML", Extension: CYCLONEDX_XML}
+	SpdxJsonFile      = ArtifactFile{Type: "SPDX_JSON", Extension: SPDX_JSON}
 )
 
 // CommonArtifactFiles 返回常用的制品文件类型列表
@@ -1003,4 +1011,158 @@ func (c *Client) SaveBundle(bundle *ArtifactBundle, baseDir string) error {
 	}
 
 	return nil
+}
+
+// DownloadCycloneDXJSON 下载 CycloneDX JSON 格式的 SBOM 文件
+//
+// CycloneDX 是一种轻量级的软件物料清单（SBOM）标准。
+// 并非所有制品都提供 SBOM 文件，如果文件不存在将返回错误。
+//
+// 参数:
+//   - ctx: 上下文对象
+//   - groupId: Maven 组 ID
+//   - artifactId: 制品 ID
+//   - version: 版本号
+//
+// 返回:
+//   - []byte: CycloneDX JSON 文件内容
+//   - error: 下载过程中的错误
+func (c *Client) DownloadCycloneDXJSON(ctx context.Context, groupId, artifactId, version string) ([]byte, error) {
+	path := BuildArtifactPath(groupId, artifactId, version, CYCLONEDX_JSON)
+	return c.Download(ctx, path)
+}
+
+// DownloadCycloneDXXML 下载 CycloneDX XML 格式的 SBOM 文件
+//
+// 参数:
+//   - ctx: 上下文对象
+//   - groupId: Maven 组 ID
+//   - artifactId: 制品 ID
+//   - version: 版本号
+//
+// 返回:
+//   - []byte: CycloneDX XML 文件内容
+//   - error: 下载过程中的错误
+func (c *Client) DownloadCycloneDXXML(ctx context.Context, groupId, artifactId, version string) ([]byte, error) {
+	path := BuildArtifactPath(groupId, artifactId, version, CYCLONEDX_XML)
+	return c.Download(ctx, path)
+}
+
+// DownloadSpdxJSON 下载 SPDX JSON 格式的 SBOM 文件
+//
+// SPDX 是另一种软件物料清单标准。
+// 并非所有制品都提供 SBOM 文件，如果文件不存在将返回错误。
+//
+// 参数:
+//   - ctx: 上下文对象
+//   - groupId: Maven 组 ID
+//   - artifactId: 制品 ID
+//   - version: 版本号
+//
+// 返回:
+//   - []byte: SPDX JSON 文件内容
+//   - error: 下载过程中的错误
+func (c *Client) DownloadSpdxJSON(ctx context.Context, groupId, artifactId, version string) ([]byte, error) {
+	path := BuildArtifactPath(groupId, artifactId, version, SPDX_JSON)
+	return c.Download(ctx, path)
+}
+
+// DownloadChecksumFile 下载 Maven Central 提供的官方校验和文件
+//
+// Maven Central 为每个文件提供 .sha1、.md5 和 .sha256 校验和文件。
+// 此方法直接下载这些官方校验和文件，而非本地计算。
+//
+// 参数:
+//   - ctx: 上下文对象
+//   - filePath: 文件在仓库中的相对路径
+//   - checksumType: 校验和类型，支持 "sha1"、"md5"、"sha256"
+//
+// 返回:
+//   - string: 官方校验和值（十六进制字符串）
+//   - error: 下载过程中的错误
+//
+// 使用示例:
+//
+//	checksum, err := client.DownloadChecksumFile(ctx,
+//	    "org/apache/commons/commons-lang3/3.12.0/commons-lang3-3.12.0.jar",
+//	    "sha1")
+func (c *Client) DownloadChecksumFile(ctx context.Context, filePath, checksumType string) (string, error) {
+	checksumFilePath := filePath + "." + checksumType
+	data, err := c.Download(ctx, checksumFilePath)
+	if err != nil {
+		return "", fmt.Errorf("下载校验和文件失败: %w", err)
+	}
+
+	// 校验和文件通常只包含十六进制字符串，有时后面跟文件名
+	checksum := strings.TrimSpace(string(data))
+	if parts := strings.Fields(checksum); len(parts) > 0 {
+		checksum = parts[0]
+	}
+
+	return checksum, nil
+}
+
+// DownloadWithVerifiedChecksum 下载文件并使用官方校验和验证完整性
+//
+// 此方法下载文件后，从 Maven Central 下载对应的官方校验和文件进行比对验证。
+// 与 DownloadWithChecksum 不同，此方法使用官方提供的校验和值而非本地计算。
+//
+// 参数:
+//   - ctx: 上下文对象
+//   - filePath: 文件在仓库中的相对路径
+//   - checksumType: 校验和类型，支持 "sha1"、"md5"、"sha256"
+//
+// 返回:
+//   - []byte: 下载的文件内容
+//   - string: 官方校验和值
+//   - error: 下载或验证过程中的错误
+func (c *Client) DownloadWithVerifiedChecksum(ctx context.Context, filePath, checksumType string) ([]byte, string, error) {
+	// 下载文件
+	data, err := c.Download(ctx, filePath)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// 下载官方校验和
+	officialChecksum, err := c.DownloadChecksumFile(ctx, filePath, checksumType)
+	if err != nil {
+		// 如果校验和文件不存在，本地计算并返回
+		var localChecksum string
+		switch strings.ToLower(checksumType) {
+		case "sha1":
+			hash := sha1.Sum(data)
+			localChecksum = hex.EncodeToString(hash[:])
+		case "md5":
+			hash := md5.Sum(data)
+			localChecksum = hex.EncodeToString(hash[:])
+		case "sha256":
+			hash := sha256.Sum256(data)
+			localChecksum = hex.EncodeToString(hash[:])
+		default:
+			return data, "", fmt.Errorf("不支持的校验和类型: %s", checksumType)
+		}
+		return data, localChecksum, nil
+	}
+
+	// 本地计算校验和进行比对
+	var localChecksum string
+	switch strings.ToLower(checksumType) {
+	case "sha1":
+		hash := sha1.Sum(data)
+		localChecksum = hex.EncodeToString(hash[:])
+	case "md5":
+		hash := md5.Sum(data)
+		localChecksum = hex.EncodeToString(hash[:])
+	case "sha256":
+		hash := sha256.Sum256(data)
+		localChecksum = hex.EncodeToString(hash[:])
+	default:
+		return data, officialChecksum, fmt.Errorf("不支持的校验和类型: %s", checksumType)
+	}
+
+	if localChecksum != officialChecksum {
+		return data, officialChecksum, fmt.Errorf("校验和不匹配: 本地计算 %s，官方值 %s", localChecksum, officialChecksum)
+	}
+
+	return data, officialChecksum, nil
 }

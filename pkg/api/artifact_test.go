@@ -239,6 +239,8 @@ func TestGetArtifactDependencies(t *testing.T) {
 }
 
 func TestGetArtifactUsage(t *testing.T) {
+	t.Skip("依赖搜索 API (Solr d: 字段) 已失效（返回 400），GetArtifactUsage 已废弃")
+
 	client := createRealClient(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

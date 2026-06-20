@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 
 	"github.com/scagogogo/sonatype-central-sdk/pkg/request"
 	"github.com/scagogogo/sonatype-central-sdk/pkg/response"
@@ -53,23 +52,29 @@ import (
 //	    fmt.Printf("- %s (%s)\n", file.Name, file.Type)
 //	}
 func (c *Client) GetVersionInfo(ctx context.Context, groupId, artifactId, version string) (*response.VersionInfo, error) {
-	// 构建URL
-	targetUrl := fmt.Sprintf("%s/solrsearch/select?q=g:%s+AND+a:%s+AND+v:%s&rows=1&wt=json",
-		c.baseURL,
-		url.QueryEscape(groupId),
-		url.QueryEscape(artifactId),
-		url.QueryEscape(version))
+	// 使用标准 Solr 搜索查询，返回 response.Response[*response.Version] 格式
+	search := request.NewSearchRequest().
+		SetQuery(request.NewQuery().SetGroupId(groupId).SetArtifactId(artifactId).SetVersion(version)).
+		SetCore("gav").
+		SetLimit(1)
 
-	// 创建响应对象
-	var result response.VersionInfo
-
-	// 执行请求
-	_, err := c.doRequest(ctx, "GET", targetUrl, nil, &result)
+	result, err := SearchRequestJsonDoc[*response.Version](c, ctx, search)
 	if err != nil {
 		return nil, err
 	}
 
-	return &result, nil
+	if result == nil || result.ResponseBody == nil || len(result.ResponseBody.Docs) == 0 {
+		return nil, ErrNotFound
+	}
+
+	v := result.ResponseBody.Docs[0]
+	return &response.VersionInfo{
+		GroupId:     v.GroupId,
+		ArtifactId:  v.ArtifactId,
+		Version:     v.Version,
+		LastUpdated: fmt.Sprintf("%d", v.Timestamp),
+		Packaging:   v.Packaging,
+	}, nil
 }
 
 // ListVersions 根据GroupID和artifactId列出下面的所有版本

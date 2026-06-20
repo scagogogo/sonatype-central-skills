@@ -64,9 +64,11 @@ func TestSearchClassesWithHighlighting(t *testing.T) {
 					assert.Contains(t, highlight, "</em>", "高亮文本应包含</em>标签")
 
 					// 验证高亮文本包含搜索词(不区分大小写)
-					searchTermLower := strings.ToLower(strings.Replace(className, ".", "\\.", -1))
-					assert.Contains(t, strings.ToLower(highlight), searchTermLower,
-						"高亮文本应包含搜索词")
+					// 移除 <em> 和 </em> 标签后检查是否包含原始搜索词
+					plainHighlight := strings.ReplaceAll(highlight, "<em>", "")
+					plainHighlight = strings.ReplaceAll(plainHighlight, "</em>", "")
+					assert.Contains(t, strings.ToLower(plainHighlight), strings.ToLower(className),
+						"移除高亮标签后的文本应包含搜索词")
 				}
 			}
 		}

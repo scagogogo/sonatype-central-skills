@@ -282,10 +282,10 @@ func (c *Client) GetArtifactDetails(ctx context.Context, groupId, artifactId, ve
 //	        artifact.DownloadCount)
 //	}
 func (c *Client) SearchPopularArtifacts(ctx context.Context, limit int) ([]*response.Artifact, error) {
-	// 创建搜索请求，按版本数量和时间戳排序
+	// 创建搜索请求，按时间戳降序排序（最新发布的制品排在前面）
 	search := request.NewSearchRequest().
 		SetQuery(request.NewQuery().SetText("*")).
-		SetSort("versionCount", false). // 按版本数量降序排序
+		SetSort("timestamp", false). // 按时间戳降序排序
 		SetLimit(limit)
 
 	result, err := SearchRequestJsonDoc[*response.Artifact](c, ctx, search)
@@ -534,6 +534,10 @@ type ArtifactUsage struct {
 }
 
 // GetArtifactUsage 获取制品的使用情况
+//
+// Deprecated: Sonatype Central 的 Solr 索引不再支持 d: (dependency) 字段查询（返回 400）。
+// 此方法依赖该查询语法，因此已失效。目前没有官方的替代 API 来查询制品使用情况。
+// 该方法保留以保持 API 兼容性，但调用将返回错误。
 //
 // 该方法用于分析指定Maven制品被其他项目使用的情况，包括总使用数量、主要使用者列表和按组分类的使用情况。
 // 通过这些信息，开发者可以评估制品的流行度和影响力，了解主要的使用者是哪些项目或组织，有助于做出

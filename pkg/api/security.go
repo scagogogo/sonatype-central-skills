@@ -22,8 +22,11 @@ const (
 
 // GetSecurityRating 获取制品的安全评分
 //
+// Deprecated: search.maven.org/api/security/* 端点已被 Sonatype 封锁（返回 403）。
+// Sonatype 已将该 API 迁移到需要认证的新平台。目前没有公开的替代 API。
+// 该方法保留以保持 API 兼容性，但调用将返回错误。
+//
 // 此方法提供了一种获取指定制品版本安全评分的方式，返回包含安全评级和相关详情的安全评分信息。
-// 安全评分基于该制品版本已知的漏洞数量和严重性来计算，可用于评估使用该制品的潜在风险。
 //
 // 参数:
 //   - ctx: 上下文，用于控制请求的生命周期
@@ -64,9 +67,9 @@ func (c *Client) GetSecurityRating(ctx context.Context, groupId, artifactId, ver
 
 // SearchVulnerableArtifacts 搜索Maven中央仓库中具有已知漏洞的构件。
 //
-// 该方法允许使用自定义查询来搜索具有安全漏洞的构件。通常，查询中应包含
-// 漏洞相关的条件，例如 "vulnerabilities.severity:[MODERATE TO CRITICAL]"
-// 来过滤特定严重性级别的漏洞。
+// Deprecated: Sonatype Central 的 Solr 索引不再支持 vulnerabilities 相关字段查询（返回 400）。
+// 安全漏洞 API 已被 Sonatype 迁移到需要认证的新平台。
+// 该方法保留以保持 API 兼容性，但调用将返回错误。
 //
 // 参数:
 //   - ctx: 请求的上下文，用于控制请求的生命周期。
@@ -115,6 +118,9 @@ func (c *Client) SearchVulnerableArtifacts(ctx context.Context, query *request.Q
 }
 
 // GetVulnerabilityDetails 获取特定构件版本的漏洞详情
+//
+// Deprecated: search.maven.org/api/security/* 端点已被 Sonatype 封锁（返回 403）。
+// 该方法保留以保持 API 兼容性，但调用将返回错误。
 func (c *Client) GetVulnerabilityDetails(ctx context.Context, groupId, artifactId, version string) (*response.VulnerabilityDetails, error) {
 	targetUrl := fmt.Sprintf("%s/api/security/vulnerabilities/%s/%s/%s", c.baseURL, groupId, artifactId, version)
 	var details response.VulnerabilityDetails
@@ -126,6 +132,8 @@ func (c *Client) GetVulnerabilityDetails(ctx context.Context, groupId, artifactI
 }
 
 // CheckCVEImpact 检查特定构件是否受到某个CVE编号漏洞的影响
+//
+// Deprecated: 依赖已废弃的 GetVulnerabilityDetails 方法。
 func (c *Client) CheckCVEImpact(ctx context.Context, cveId, groupId, artifactId, version string) (bool, *response.Vulnerability, error) {
 	details, err := c.GetVulnerabilityDetails(ctx, groupId, artifactId, version)
 	if err != nil {
@@ -142,6 +150,8 @@ func (c *Client) CheckCVEImpact(ctx context.Context, cveId, groupId, artifactId,
 }
 
 // FindArtifactsByCVE 根据CVE编号查找受影响的构件
+//
+// Deprecated: Sonatype Central 的 Solr 索引不再支持 cve: 字段查询（返回 400）。
 func (c *Client) FindArtifactsByCVE(ctx context.Context, cveId string, limit int) ([]*response.Artifact, error) {
 	// 构建请求
 	vulnQuery := request.NewQuery().
@@ -163,6 +173,8 @@ func (c *Client) FindArtifactsByCVE(ctx context.Context, cveId string, limit int
 }
 
 // CompareVersionSecurity 比较两个版本的安全性差异
+//
+// Deprecated: 依赖已废弃的 GetSecurityRating 方法。
 func (c *Client) CompareVersionSecurity(ctx context.Context, groupId, artifactId, version1, version2 string) (*response.SecurityComparison, error) {
 	rating1, err := c.GetSecurityRating(ctx, groupId, artifactId, version1)
 	if err != nil {
@@ -198,6 +210,8 @@ func (c *Client) CompareVersionSecurity(ctx context.Context, groupId, artifactId
 }
 
 // GetRecommendedSecureVersion 获取修复特定漏洞的推荐版本
+//
+// Deprecated: 依赖已废弃的 GetVulnerabilityDetails 方法。
 func (c *Client) GetRecommendedSecureVersion(ctx context.Context, groupId, artifactId, currentVersion string) (string, error) {
 	// 获取当前版本的漏洞信息
 	vulnDetails, err := c.GetVulnerabilityDetails(ctx, groupId, artifactId, currentVersion)
@@ -251,6 +265,8 @@ func (c *Client) GetRecommendedSecureVersion(ctx context.Context, groupId, artif
 }
 
 // BatchSecurityScan 批量检查多个构件的安全状态
+//
+// Deprecated: 依赖已废弃的 GetSecurityRating 方法。
 func (c *Client) BatchSecurityScan(ctx context.Context, artifacts []*response.ArtifactRef) ([]*response.SecurityScanResult, error) {
 	var results []*response.SecurityScanResult
 
@@ -275,6 +291,8 @@ func (c *Client) BatchSecurityScan(ctx context.Context, artifacts []*response.Ar
 }
 
 // GetVulnerabilityTimeline 获取构件漏洞随版本变化的时间线
+//
+// Deprecated: 依赖已废弃的 GetSecurityRating 和 GetVulnerabilityDetails 方法。
 func (c *Client) GetVulnerabilityTimeline(ctx context.Context, groupId, artifactId string, maxVersions int) (*response.VulnerabilityTimeline, error) {
 	// 获取所有版本
 	versions, err := c.ListVersions(ctx, groupId, artifactId, maxVersions)
@@ -336,6 +354,8 @@ func (c *Client) GetVulnerabilityTimeline(ctx context.Context, groupId, artifact
 }
 
 // GetComponentVulnerabilityOverview 获取组件的漏洞概览，包括不同版本的安全状态
+//
+// Deprecated: 依赖已废弃的 GetSecurityRating 方法。
 func (c *Client) GetComponentVulnerabilityOverview(ctx context.Context, groupId, artifactId string, limitVersions int) (*response.ComponentVulnOverview, error) {
 	// 获取组件的版本列表
 	versions, err := c.ListVersions(ctx, groupId, artifactId, limitVersions)
@@ -387,6 +407,8 @@ func (c *Client) GetComponentVulnerabilityOverview(ctx context.Context, groupId,
 }
 
 // FindSimilarVulnerableArtifacts 查找与指定组件有相似漏洞的其他组件
+//
+// Deprecated: 依赖已废弃的 GetVulnerabilityDetails 方法和 cve: 字段查询。
 func (c *Client) FindSimilarVulnerableArtifacts(ctx context.Context, groupId, artifactId, version string, limit int) ([]*response.Artifact, error) {
 	// 获取当前组件的漏洞信息
 	vulnDetails, err := c.GetVulnerabilityDetails(ctx, groupId, artifactId, version)

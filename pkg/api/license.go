@@ -40,6 +40,10 @@ const (
 )
 
 // GetComponentLicenses 获取一个组件的许可证信息
+//
+// Deprecated: Sonatype Central 的 Solr 索引不再返回 licenseList 字段。
+// 许可证信息可以通过下载并解析 POM 文件来获取。
+// 该方法保留以保持 API 兼容性，但可能返回空结果。
 func (c *Client) GetComponentLicenses(ctx context.Context, groupID, artifactID, version string) ([]response.LicenseInfo, error) {
 	// 构建请求URL
 	q := fmt.Sprintf("g:%s+AND+a:%s+AND+v:%s",
@@ -82,6 +86,9 @@ func (c *Client) GetComponentLicenses(ctx context.Context, groupID, artifactID, 
 }
 
 // SearchByLicenseType 搜索使用特定许可证类型的组件
+//
+// Deprecated: Sonatype Central 的 Solr 索引不再支持 l: (license) 字段查询（返回空结果）。
+// 该方法保留以保持 API 兼容性，但调用将返回空结果。
 func (c *Client) SearchByLicenseType(ctx context.Context, licenseType LicenseType, limit int) ([]response.ArtifactRef, error) {
 	// 构建查询请求
 	q := fmt.Sprintf("l:%s", url.QueryEscape(string(licenseType)))
@@ -161,6 +168,9 @@ func (c *Client) FindLicenseConflicts(ctx context.Context, artifacts []response.
 }
 
 // GetPopularLicenses 获取按使用频率排序的流行许可证
+//
+// Deprecated: Sonatype Central 的 Solr 已禁用 facet 聚合功能（参数被忽略）。
+// 该方法保留以保持 API 兼容性，但调用将返回空结果。
 func (c *Client) GetPopularLicenses(ctx context.Context, limit int) (map[string]int, error) {
 	// 使用facet查询获取许可证分布
 	query := request.NewQuery().SetCustomQuery("*:*")

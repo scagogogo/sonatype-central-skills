@@ -118,6 +118,9 @@ func (c *Client) IteratorByClassName(ctx context.Context, class string) *SearchI
 
 // SearchClassesByMethod 搜索包含特定方法的类
 //
+// Deprecated: Sonatype Central 的 Solr 索引不再支持 m: (method) 字段查询（返回 400）。
+// 该方法保留以保持 API 兼容性，但调用将返回错误。
+//
 // 该方法在Maven Central仓库中搜索包含指定方法名的Java类，返回相关制品信息。
 // 这是一个高级搜索功能，可以帮助开发者查找特定功能的实现，尤其适合寻找API和工具类。
 // 注意此功能依赖于Maven索引中的方法信息，在某些情况下可能不够完整或准确。
@@ -178,6 +181,8 @@ func (c *Client) SearchClassesByMethod(ctx context.Context, methodName string, l
 }
 
 // IteratorByMethod 返回一个方法名搜索的迭代器
+//
+// Deprecated: Sonatype Central 的 Solr 索引不再支持 m: (method) 字段查询（返回 400）。
 //
 // 该方法创建一个迭代器对象，用于高效地处理包含特定方法名的类搜索结果。
 // 迭代器模式特别适合处理可能返回大量数据的方法搜索，通过分批获取结果数据

@@ -205,9 +205,11 @@ func (c *Client) SearchWithSort(ctx context.Context, searchQuery *request.Search
 
 // SearchByDependency 根据依赖搜索
 //
-// 该方法用于查找使用指定依赖的制品。这对于分析依赖关系图、查找使用特定库的项目，
-// 或者分析特定库的受欢迎程度非常有用。搜索会返回在其POM文件中声明了指定groupId
-// 和artifactId依赖的所有制品。
+// Deprecated: Sonatype Central 的 Solr 索引不再支持 d: (dependency) 字段查询（返回 400）。
+// 依赖信息可以通过下载并解析 POM 文件来获取。
+// 该方法保留以保持 API 兼容性，但调用将返回错误。
+//
+// 该方法用于查找使用指定依赖的制品。
 //
 // 参数:
 //   - ctx: 请求上下文，用于控制超时和取消
