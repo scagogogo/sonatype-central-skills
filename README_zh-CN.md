@@ -96,6 +96,7 @@ func main() {
     deployments, err := client.ListDeployments(context.Background(), &response.DeploymentListOptions{
         Namespace: "com.example",
         State:     response.DeploymentStateValidated,
+        Paginate:  true,
         Page:      0,
         Size:      20,
     })
@@ -103,10 +104,24 @@ func main() {
         panic(err)
     }
     for _, d := range deployments.Deployments {
-        fmt.Printf("部署: %s, 状态: %s\n", d.Name, d.State)
+        fmt.Printf("部署: %s, 状态: %s\n", d.DeploymentName, d.DeploymentState)
     }
 }
 ```
+
+### 发布 API 方法
+
+| 方法 | 说明 |
+|------|------|
+| `UploadBundle` | 上传部署包（ZIP） |
+| `GetDeploymentStatus` | 按 ID 查询部署状态 |
+| `CheckPublished` | 检查组件（namespace/name/version）是否已发布 |
+| `ListDeployments` | 列出部署，支持过滤和分页 |
+| `BrowseDeployment` | 浏览部署文件（便捷方法） |
+| `BrowseDeploymentWithOptions` | 浏览部署文件，支持完整选项（sortField、分页、路径过滤） |
+| `DownloadDeploymentFile` | 下载部署中的指定文件 |
+| `DropDeployment` | 删除部署（仅 FAILED/VALIDATED 状态） |
+| `PublishDeployment` | 发布部署（仅 VALIDATED 状态） |
 
 ## 高级搜索
 

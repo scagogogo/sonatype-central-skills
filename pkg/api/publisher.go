@@ -155,12 +155,24 @@ func NewPublisherClient(options ...PublisherClientOption) *PublisherClient {
 	return client
 }
 
+// hasExtension 检查文件名是否包含扩展名
+func hasExtension(fileName string) bool {
+	for i := len(fileName) - 1; i >= 0; i-- {
+		if fileName[i] == '.' {
+			return true
+		}
+		if fileName[i] == '/' || fileName[i] == '\\' {
+			return false
+		}
+	}
+	return false
+}
+
 // doRequest 执行 HTTP 请求
 func (pc *PublisherClient) doRequest(ctx context.Context, method, path string, body io.Reader, contentType string, result interface{}) error {
-	targetURL, err := url.JoinPath(pc.baseURL, path)
-	if err != nil {
-		return fmt.Errorf("构建 URL 失败: %w", err)
-	}
+	// 注意：不能使用 url.JoinPath，因为它会对 path 中的 '?' 进行编码，
+	// 导致查询字符串被当作路径的一部分。这里手动拼接 base URL 和 path。
+	targetURL := pc.baseURL + path
 
 	req, err := http.NewRequestWithContext(ctx, method, targetURL, body)
 	if err != nil {
@@ -192,6 +204,11 @@ func (pc *PublisherClient) doRequest(ctx context.Context, method, path string, b
 	}
 
 	if resp.StatusCode >= 400 {
+		// 尝试解析 Publisher API 的标准错误响应
+		var errResp response.PublisherErrorResponse
+		if jsonErr := json.Unmarshal(respBody, &errResp); jsonErr == nil && errResp.Message != "" {
+			return &errResp
+		}
 		return &response.APIError{
 			Code:    fmt.Sprintf("%d", resp.StatusCode),
 			Message: fmt.Sprintf("Publisher API 错误 [%d]: %s", resp.StatusCode, string(respBody)),
@@ -238,7 +255,14 @@ func (pc *PublisherClient) UploadBundle(ctx context.Context, bundle []byte, name
 	writer := multipart.NewWriter(&buf)
 
 	// 添加 bundle 文件
-	part, err := writer.CreateFormFile("bundle", name+".zip")
+	fileName := name
+	if fileName == "" {
+		fileName = "bundle"
+	}
+	if !hasExtension(fileName) {
+		fileName += ".zip"
+	}
+	part, err := writer.CreateFormFile("bundle", fileName)
 	if err != nil {
 		return "", fmt.Errorf("创建 multipart 表单失败: %w", err)
 	}
@@ -250,18 +274,17 @@ func (pc *PublisherClient) UploadBundle(ctx context.Context, bundle []byte, name
 		return "", fmt.Errorf("关闭 multipart writer 失败: %w", err)
 	}
 
-	// 构建 URL
-	path := "/api/v1/publisher/upload"
+	// 构建 URL 查询参数
+	params := url.Values{}
 	if name != "" {
-		path += "?name=" + url.QueryEscape(name)
+		params.Set("name", name)
 	}
 	if publishingType != "" {
-		if name != "" {
-			path += "&"
-		} else {
-			path += "?"
-		}
-		path += "publishingType=" + string(publishingType)
+		params.Set("publishingType", string(publishingType))
+	}
+	path := "/api/v1/publisher/upload"
+	if len(params) > 0 {
+		path += "?" + params.Encode()
 	}
 
 	var result response.PublisherUploadResponse
@@ -275,6 +298,7 @@ func (pc *PublisherClient) UploadBundle(ctx context.Context, bundle []byte, name
 // GetDeploymentStatus 查询部署状态
 //
 // 轮询此端点可以确定部署何时更改状态。
+// 根据 API 规范，部署 ID 通过 id 查询参数传递。
 //
 // 参数:
 //   - ctx: 上下文对象
@@ -284,13 +308,10 @@ func (pc *PublisherClient) UploadBundle(ctx context.Context, bundle []byte, name
 //   - *response.DeploymentStatus: 部署状态信息
 //   - error: 查询过程中的错误
 func (pc *PublisherClient) GetDeploymentStatus(ctx context.Context, deploymentID string) (*response.DeploymentStatus, error) {
-	path := "/api/v1/publisher/status"
-
-	// 将 deploymentID 作为请求体发送
-	body := bytes.NewBufferString(deploymentID)
+	path := "/api/v1/publisher/status?id=" + url.QueryEscape(deploymentID)
 
 	var result response.DeploymentStatus
-	if err := pc.doRequest(ctx, "POST", path, body, "text/plain", &result); err != nil {
+	if err := pc.doRequest(ctx, "POST", path, nil, "", &result); err != nil {
 		return nil, err
 	}
 
@@ -299,26 +320,35 @@ func (pc *PublisherClient) GetDeploymentStatus(ctx context.Context, deploymentID
 
 // CheckPublished 检查组件是否已在 Maven Central 发布
 //
+// 根据 API 规范，使用 namespace、name、version 查询参数。
+// 为保持调用方友好，参数名沿用 groupId/artifactId 的概念
+// （namespace 对应 groupId，name 对应 artifactId）。
+//
 // 参数:
 //   - ctx: 上下文对象
-//   - groupID: 组 ID
-//   - artifactID: 制品 ID
-//   - version: 版本号（可选，为空则检查所有版本）
+//   - groupID: 组 ID（对应 API 的 namespace 参数）
+//   - artifactID: 制品 ID（对应 API 的 name 参数）
+//   - version: 版本号
 //
 // 返回:
 //   - *response.PublishedCheck: 发布状态
 //   - error: 查询过程中的错误
 func (pc *PublisherClient) CheckPublished(ctx context.Context, groupID, artifactID, version string) (*response.PublishedCheck, error) {
-	path := fmt.Sprintf("/api/v1/publisher/published?groupId=%s&artifactId=%s",
-		url.QueryEscape(groupID), url.QueryEscape(artifactID))
-	if version != "" {
-		path += "&version=" + url.QueryEscape(version)
-	}
+	params := url.Values{}
+	params.Set("namespace", groupID)
+	params.Set("name", artifactID)
+	params.Set("version", version)
+	path := "/api/v1/publisher/published?" + params.Encode()
 
 	var result response.PublishedCheck
 	if err := pc.doRequest(ctx, "GET", path, nil, "", &result); err != nil {
 		return nil, err
 	}
+
+	// 填充回请求的坐标信息（API 响应只包含 published 字段）
+	result.Namespace = groupID
+	result.Name = artifactID
+	result.Version = version
 
 	return &result, nil
 }
@@ -366,10 +396,8 @@ func (pc *PublisherClient) ListDeployments(ctx context.Context, options *respons
 		if options.State != "" {
 			params.Set("deploymentState", string(options.State))
 		}
-		if options.Page > 0 {
+		if options.Paginate {
 			params.Set("page", fmt.Sprintf("%d", options.Page))
-		}
-		if options.Size > 0 {
 			params.Set("size", fmt.Sprintf("%d", options.Size))
 		}
 		if options.SortField != "" {
@@ -391,26 +419,80 @@ func (pc *PublisherClient) ListDeployments(ctx context.Context, options *respons
 	return &result, nil
 }
 
-// BrowseDeployment 浏览部署包中的文件内容
+// BrowseDeployment 浏览部署包中的文件内容（便捷方法）
+//
+// 这是 BrowseDeploymentWithOptions 的便捷封装，使用默认参数浏览单个部署。
 //
 // 参数:
 //   - ctx: 上下文对象
 //   - deploymentID: 部署 ID
 //
 // 返回:
-//   - *response.DeploymentFilesList: 部署包中的文件列表
+//   - *response.DeploymentResponseFiles: 部署包的文件内容信息
 //   - error: 查询过程中的错误
-func (pc *PublisherClient) BrowseDeployment(ctx context.Context, deploymentID string) (*response.DeploymentFilesList, error) {
+func (pc *PublisherClient) BrowseDeployment(ctx context.Context, deploymentID string) (*response.DeploymentResponseFiles, error) {
+	results, err := pc.BrowseDeploymentWithOptions(ctx, &response.BrowseDeploymentRequest{
+		DeploymentIds: []string{deploymentID},
+		Page:          0,
+		Size:          500,
+		SortField:     "createdTimestamp",
+		SortDirection: "desc",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, fmt.Errorf("未找到部署 %s 的文件信息", deploymentID)
+	}
+	return &results[0], nil
+}
+
+// BrowseDeploymentWithOptions 浏览部署包文件内容（完整选项）
+//
+// 根据 API 规范，此端点需要发送 JSON 请求体，包含分页、排序和过滤参数。
+// sortField 为必填字段。
+//
+// 参数:
+//   - ctx: 上下文对象
+//   - req: 浏览请求选项
+//
+// 返回:
+//   - []response.DeploymentResponseFiles: 部署文件信息列表
+//   - error: 查询过程中的错误
+//
+// 使用示例:
+//
+//	results, err := client.BrowseDeploymentWithOptions(ctx, &response.BrowseDeploymentRequest{
+//	    DeploymentIds: []string{"dep-id-1", "dep-id-2"},
+//	    Page:          0,
+//	    Size:          100,
+//	    SortField:     "createdTimestamp",
+//	    SortDirection: "desc",
+//	    PathStarting:  "org/sonatype/",
+//	})
+func (pc *PublisherClient) BrowseDeploymentWithOptions(ctx context.Context, req *response.BrowseDeploymentRequest) ([]response.DeploymentResponseFiles, error) {
+	if req == nil {
+		return nil, fmt.Errorf("请求选项不能为空")
+	}
+	if req.SortField == "" {
+		return nil, fmt.Errorf("sortField 为必填字段")
+	}
+
 	path := "/api/v1/publisher/deployments/files"
 
-	body := bytes.NewBufferString(deploymentID)
+	bodyData, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("序列化请求体失败: %w", err)
+	}
 
-	var result response.DeploymentFilesList
-	if err := pc.doRequest(ctx, "POST", path, body, "text/plain", &result); err != nil {
+	var result struct {
+		Deployments []response.DeploymentResponseFiles `json:"deployments"`
+	}
+	if err := pc.doRequest(ctx, "POST", path, bytes.NewReader(bodyData), "application/json", &result); err != nil {
 		return nil, err
 	}
 
-	return &result, nil
+	return result.Deployments, nil
 }
 
 // DownloadDeploymentFile 从部署包中下载文件
@@ -425,13 +507,11 @@ func (pc *PublisherClient) BrowseDeployment(ctx context.Context, deploymentID st
 //   - error: 下载过程中的错误
 func (pc *PublisherClient) DownloadDeploymentFile(ctx context.Context, deploymentID, relativePath string) ([]byte, error) {
 	path := fmt.Sprintf("/api/v1/publisher/deployment/%s/download/%s",
-		url.PathEscape(deploymentID), relativePath)
+		url.PathEscape(deploymentID), url.PathEscape(relativePath))
 
 	// 直接下载文件，不解析 JSON
-	targetURL, err := url.JoinPath(pc.baseURL, path)
-	if err != nil {
-		return nil, fmt.Errorf("构建 URL 失败: %w", err)
-	}
+	// 注意：使用字符串拼接而非 url.JoinPath，以保持与 doRequest 一致
+	targetURL := pc.baseURL + path
 
 	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
 	if err != nil {
@@ -453,6 +533,11 @@ func (pc *PublisherClient) DownloadDeploymentFile(ctx context.Context, deploymen
 
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(resp.Body)
+		// 尝试解析 Publisher API 的标准错误响应
+		var errResp response.PublisherErrorResponse
+		if jsonErr := json.Unmarshal(respBody, &errResp); jsonErr == nil && errResp.Message != "" {
+			return nil, &errResp
+		}
 		return nil, &response.APIError{
 			Code:    fmt.Sprintf("%d", resp.StatusCode),
 			Message: fmt.Sprintf("下载失败 [%d]: %s", resp.StatusCode, string(respBody)),

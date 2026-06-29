@@ -96,6 +96,7 @@ func main() {
     deployments, err := client.ListDeployments(context.Background(), &response.DeploymentListOptions{
         Namespace: "com.example",
         State:     response.DeploymentStateValidated,
+        Paginate:  true,
         Page:      0,
         Size:      20,
     })
@@ -103,10 +104,24 @@ func main() {
         panic(err)
     }
     for _, d := range deployments.Deployments {
-        fmt.Printf("Deployment: %s, State: %s\n", d.Name, d.State)
+        fmt.Printf("Deployment: %s, State: %s\n", d.DeploymentName, d.DeploymentState)
     }
 }
 ```
+
+### Publisher API Methods
+
+| Method | Description |
+|--------|-------------|
+| `UploadBundle` | Upload a deployment bundle (ZIP) |
+| `GetDeploymentStatus` | Retrieve deployment status by ID |
+| `CheckPublished` | Check if a component (namespace/name/version) is published |
+| `ListDeployments` | List deployments with filtering and pagination |
+| `BrowseDeployment` | Browse files in a deployment (convenience method) |
+| `BrowseDeploymentWithOptions` | Browse files with full options (sortField, pagination, path filter) |
+| `DownloadDeploymentFile` | Download a specific file from a deployment |
+| `DropDeployment` | Drop a deployment (FAILED/VALIDATED only) |
+| `PublishDeployment` | Publish a deployment (VALIDATED only) |
 
 ## Advanced Search
 
