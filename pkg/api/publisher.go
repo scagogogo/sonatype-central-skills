@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/scagogogo/sonatype-central-sdk/pkg/response"
@@ -168,15 +169,37 @@ func hasExtension(fileName string) bool {
 	return false
 }
 
-// doRequest 执行 HTTP 请求
+// doRequest 执行 HTTP 请求，将 JSON 响应解析到 result 中。
+//
+// 如果 result 为 nil，则不解析响应体（仅用于无返回值的操作，如 DELETE）。
+// 对于非 JSON 响应（如 text/plain），请使用 doRequestRaw。
 func (pc *PublisherClient) doRequest(ctx context.Context, method, path string, body io.Reader, contentType string, result interface{}) error {
+	respBody, err := pc.doRequestRaw(ctx, method, path, body, contentType)
+	if err != nil {
+		return err
+	}
+
+	if result != nil && len(respBody) > 0 {
+		if err := json.Unmarshal(respBody, result); err != nil {
+			return fmt.Errorf("解析响应失败: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// doRequestRaw 执行 HTTP 请求并返回原始响应体字节。
+//
+// 用于处理非 JSON 响应（如 /upload 返回的 text/plain 部署 ID）。
+// 错误响应（HTTP >= 400）会被解析为 PublisherErrorResponse 或 APIError。
+func (pc *PublisherClient) doRequestRaw(ctx context.Context, method, path string, body io.Reader, contentType string) ([]byte, error) {
 	// 注意：不能使用 url.JoinPath，因为它会对 path 中的 '?' 进行编码，
 	// 导致查询字符串被当作路径的一部分。这里手动拼接 base URL 和 path。
 	targetURL := pc.baseURL + path
 
 	req, err := http.NewRequestWithContext(ctx, method, targetURL, body)
 	if err != nil {
-		return fmt.Errorf("创建请求失败: %w", err)
+		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
 	// 设置认证
@@ -194,34 +217,28 @@ func (pc *PublisherClient) doRequest(ctx context.Context, method, path string, b
 
 	resp, err := pc.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("请求失败: %w", err)
+		return nil, fmt.Errorf("请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("读取响应失败: %w", err)
+		return nil, fmt.Errorf("读取响应失败: %w", err)
 	}
 
 	if resp.StatusCode >= 400 {
 		// 尝试解析 Publisher API 的标准错误响应
 		var errResp response.PublisherErrorResponse
 		if jsonErr := json.Unmarshal(respBody, &errResp); jsonErr == nil && errResp.Message != "" {
-			return &errResp
+			return nil, &errResp
 		}
-		return &response.APIError{
+		return nil, &response.APIError{
 			Code:    fmt.Sprintf("%d", resp.StatusCode),
 			Message: fmt.Sprintf("Publisher API 错误 [%d]: %s", resp.StatusCode, string(respBody)),
 		}
 	}
 
-	if result != nil && len(respBody) > 0 {
-		if err := json.Unmarshal(respBody, result); err != nil {
-			return fmt.Errorf("解析响应失败: %w", err)
-		}
-	}
-
-	return nil
+	return respBody, nil
 }
 
 // UploadBundle 上传发布包到 Maven Central
@@ -287,12 +304,18 @@ func (pc *PublisherClient) UploadBundle(ctx context.Context, bundle []byte, name
 		path += "?" + params.Encode()
 	}
 
-	var result response.PublisherUploadResponse
-	if err := pc.doRequest(ctx, "POST", path, &buf, writer.FormDataContentType(), &result); err != nil {
+	// 根据 API 规范，/upload 返回 text/plain，内容为部署 ID 字符串
+	// （可能带引号包围），因此使用 doRequestRaw 读取原始响应体
+	respBody, err := pc.doRequestRaw(ctx, "POST", path, &buf, writer.FormDataContentType())
+	if err != nil {
 		return "", err
 	}
 
-	return result.DeploymentID, nil
+	// 去除首尾的空白和可能的引号
+	deploymentID := strings.TrimSpace(string(respBody))
+	deploymentID = strings.Trim(deploymentID, `"`)
+
+	return deploymentID, nil
 }
 
 // GetDeploymentStatus 查询部署状态
@@ -308,7 +331,9 @@ func (pc *PublisherClient) UploadBundle(ctx context.Context, bundle []byte, name
 //   - *response.DeploymentStatus: 部署状态信息
 //   - error: 查询过程中的错误
 func (pc *PublisherClient) GetDeploymentStatus(ctx context.Context, deploymentID string) (*response.DeploymentStatus, error) {
-	path := "/api/v1/publisher/status?id=" + url.QueryEscape(deploymentID)
+	params := url.Values{}
+	params.Set("id", deploymentID)
+	path := "/api/v1/publisher/status?" + params.Encode()
 
 	var result response.DeploymentStatus
 	if err := pc.doRequest(ctx, "POST", path, nil, "", &result); err != nil {
@@ -487,6 +512,8 @@ func (pc *PublisherClient) BrowseDeploymentWithOptions(ctx context.Context, req 
 
 	var result struct {
 		Deployments []response.DeploymentResponseFiles `json:"deployments"`
+		Page        int                                 `json:"page,omitempty"`
+		PageSize    int                                 `json:"pageSize,omitempty"`
 	}
 	if err := pc.doRequest(ctx, "POST", path, bytes.NewReader(bodyData), "application/json", &result); err != nil {
 		return nil, err
@@ -509,42 +536,8 @@ func (pc *PublisherClient) DownloadDeploymentFile(ctx context.Context, deploymen
 	path := fmt.Sprintf("/api/v1/publisher/deployment/%s/download/%s",
 		url.PathEscape(deploymentID), url.PathEscape(relativePath))
 
-	// 直接下载文件，不解析 JSON
-	// 注意：使用字符串拼接而非 url.JoinPath，以保持与 doRequest 一致
-	targetURL := pc.baseURL + path
-
-	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
-	}
-
-	if pc.authToken != "" {
-		req.Header.Set("Authorization", "Bearer "+pc.authToken)
-	} else if pc.authUser != "" {
-		req.SetBasicAuth(pc.authUser, pc.authPass)
-	}
-	req.Header.Set("User-Agent", "sonatype-central-sdk/1.0")
-
-	resp, err := pc.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		respBody, _ := io.ReadAll(resp.Body)
-		// 尝试解析 Publisher API 的标准错误响应
-		var errResp response.PublisherErrorResponse
-		if jsonErr := json.Unmarshal(respBody, &errResp); jsonErr == nil && errResp.Message != "" {
-			return nil, &errResp
-		}
-		return nil, &response.APIError{
-			Code:    fmt.Sprintf("%d", resp.StatusCode),
-			Message: fmt.Sprintf("下载失败 [%d]: %s", resp.StatusCode, string(respBody)),
-		}
-	}
-
-	return io.ReadAll(resp.Body)
+	// 直接下载原始文件内容，不解析 JSON
+	return pc.doRequestRaw(ctx, "GET", path, nil, "")
 }
 
 // DropDeployment 删除部署

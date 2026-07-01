@@ -190,10 +190,20 @@ type DeploymentResponseFiles struct {
 }
 
 // DeploymentFile 部署包中的文件信息
+//
+// 由 /api/v1/publisher/deployments/files 端点的 deploymentFiles 数组返回。
 type DeploymentFile struct {
-	Path        string `json:"path"`
-	Size        int64  `json:"size"`
-	ContentType string `json:"contentType"`
+	// RelativePath 文件的相对路径
+	RelativePath string `json:"relativePath"`
+
+	// FileName 文件名
+	FileName string `json:"fileName"`
+
+	// FileSize 文件大小（字节）
+	FileSize int64 `json:"fileSize"`
+
+	// FileTimestamp 文件时间戳（毫秒）
+	FileTimestamp int64 `json:"fileTimestamp"`
 }
 
 // BrowseDeploymentRequest 浏览部署文件的请求体
@@ -221,6 +231,10 @@ type BrowseDeploymentRequest struct {
 }
 
 // PublisherUploadResponse 上传部署包的响应
+//
+// Deprecated: 实际的 /upload 端点返回 text/plain（仅部署 ID 字符串），
+// 而非 JSON。此类型仅为向后兼容保留，不应在新代码中使用。
+// UploadBundle 方法已直接解析 text/plain 响应。
 type PublisherUploadResponse struct {
 	DeploymentID string `json:"deploymentId"`
 	Message      string `json:"message,omitempty"`
@@ -228,7 +242,8 @@ type PublisherUploadResponse struct {
 
 // PublisherError 发布 API 的错误响应（旧版，保留向后兼容）
 //
-// 推荐使用 ErrorResponse 类型。
+// Deprecated: 推荐使用 PublisherErrorResponse 类型，它对齐了官方 API 的
+// 错误响应 schema（httpStatus/errorCode/message/explanation/data）。
 type PublisherError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`

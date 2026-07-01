@@ -168,9 +168,19 @@ func TestBrowseDeploymentWithOptions(t *testing.T) {
 							"path": "org/sonatype/nexus/nexus-api/2.3.0",
 							"errors": ["Some error"]
 						}
+					],
+					"deploymentFiles": [
+						{
+							"relativePath": "org/sonatype/nexus/nexus-api/2.3.0/nexus-api-2.3.0.jar",
+							"fileName": "nexus-api-2.3.0.jar",
+							"fileSize": 251058,
+							"fileTimestamp": 1679067206616
+						}
 					]
 				}
-			]
+			],
+			"page": 0,
+			"pageSize": 100
 		}`))
 	}))
 	defer server.Close()
@@ -197,6 +207,14 @@ func TestBrowseDeploymentWithOptions(t *testing.T) {
 	require.Len(t, results[0].DeployedComponentVersions, 1)
 	assert.Equal(t, "manifest.json", results[0].DeployedComponentVersions[0].Name)
 	require.Len(t, results[0].DeployedComponentVersions[0].Errors, 1)
+
+	// 验证 deploymentFiles 解析（字段名对齐官方 schema）
+	require.Len(t, results[0].DeploymentFiles, 1)
+	df := results[0].DeploymentFiles[0]
+	assert.Equal(t, "org/sonatype/nexus/nexus-api/2.3.0/nexus-api-2.3.0.jar", df.RelativePath)
+	assert.Equal(t, "nexus-api-2.3.0.jar", df.FileName)
+	assert.Equal(t, int64(251058), df.FileSize)
+	assert.Equal(t, int64(1679067206616), df.FileTimestamp)
 
 	// 验证请求体
 	var reqBody response.BrowseDeploymentRequest
@@ -354,8 +372,9 @@ func TestUploadBundleRequest(t *testing.T) {
 		data, _ := io.ReadAll(file)
 		assert.Equal(t, []byte("test-bundle-content"), data)
 
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"deploymentId": "dep-123"}`))
+		// 根据 API 规范，/upload 返回 text/plain，内容为部署 ID 字符串
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("dep-123"))
 	}))
 	defer server.Close()
 
@@ -369,6 +388,25 @@ func TestUploadBundleRequest(t *testing.T) {
 	assert.Equal(t, "dep-123", deploymentID)
 }
 
+// TestUploadBundleQuotedResponse 测试上传响应带引号的情况
+func TestUploadBundleQuotedResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		// 某些 API 网关会返回带引号的字符串
+		_, _ = w.Write([]byte(`"dep-quoted-789"`))
+	}))
+	defer server.Close()
+
+	client := NewPublisherClient(
+		WithPublisherToken("test-token"),
+		WithPublisherBaseURL(server.URL),
+	)
+
+	deploymentID, err := client.UploadBundle(context.Background(), []byte("data"), "comp", PublishingTypeAutomatic)
+	require.NoError(t, err)
+	assert.Equal(t, "dep-quoted-789", deploymentID)
+}
+
 // TestUploadBundleDefaultNameRequest 测试上传时 name 为空使用默认文件名
 func TestUploadBundleDefaultNameRequest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -378,8 +416,8 @@ func TestUploadBundleDefaultNameRequest(t *testing.T) {
 		require.NoError(t, err)
 		// name 为空时应使用默认文件名 bundle.zip
 		assert.Equal(t, "bundle.zip", header.Filename)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"deploymentId": "dep-456"}`))
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("dep-456"))
 	}))
 	defer server.Close()
 
@@ -435,4 +473,103 @@ func TestPublishDeployment(t *testing.T) {
 
 	err := client.PublishDeployment(context.Background(), "dep-123")
 	require.NoError(t, err)
+}
+
+// TestDownloadDeploymentFile 测试从部署包下载文件
+func TestDownloadDeploymentFile(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 验证路径和 method（deploymentID 和 relativePath 都在路径中）
+		assert.Equal(t, "/api/v1/publisher/deployment/dep-123/download/com/example/lib/1.0/lib-1.0.jar", r.URL.Path)
+		assert.Equal(t, "GET", r.Method)
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = w.Write([]byte("binary-file-content"))
+	}))
+	defer server.Close()
+
+	client := NewPublisherClient(
+		WithPublisherToken("test-token"),
+		WithPublisherBaseURL(server.URL),
+	)
+
+	data, err := client.DownloadDeploymentFile(context.Background(), "dep-123", "com/example/lib/1.0/lib-1.0.jar")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("binary-file-content"), data)
+}
+
+// TestDownloadDeploymentFileError 测试下载文件时的错误响应
+func TestDownloadDeploymentFileError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{
+			"httpStatus": 404,
+			"errorCode": 10404,
+			"message": "Deployment not found"
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewPublisherClient(
+		WithPublisherToken("test-token"),
+		WithPublisherBaseURL(server.URL),
+	)
+
+	_, err := client.DownloadDeploymentFile(context.Background(), "missing-dep", "some/path.jar")
+	require.Error(t, err)
+
+	var errResp *response.PublisherErrorResponse
+	require.ErrorAs(t, err, &errResp)
+	assert.Equal(t, 404, errResp.HttpStatus)
+	assert.Equal(t, "Deployment not found", errResp.Message)
+}
+
+// TestDropDeploymentError 测试删除部署时的错误响应（部署状态不允许删除）
+func TestDropDeploymentError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{
+			"httpStatus": 409,
+			"errorCode": 10409,
+			"message": "Deployment cannot be dropped in current state"
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewPublisherClient(
+		WithPublisherToken("test-token"),
+		WithPublisherBaseURL(server.URL),
+	)
+
+	err := client.DropDeployment(context.Background(), "dep-123")
+	require.Error(t, err)
+
+	var errResp *response.PublisherErrorResponse
+	require.ErrorAs(t, err, &errResp)
+	assert.Equal(t, 409, errResp.HttpStatus)
+	assert.Contains(t, errResp.Message, "cannot be dropped")
+}
+
+// TestPublishDeploymentError 测试发布部署时的错误响应（部署状态不允许发布）
+func TestPublishDeploymentError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{
+			"httpStatus": 400,
+			"errorCode": 10400,
+			"message": "Deployment cannot be published in current state"
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewPublisherClient(
+		WithPublisherToken("test-token"),
+		WithPublisherBaseURL(server.URL),
+	)
+
+	err := client.PublishDeployment(context.Background(), "dep-123")
+	require.Error(t, err)
+
+	var errResp *response.PublisherErrorResponse
+	require.ErrorAs(t, err, &errResp)
+	assert.Equal(t, 400, errResp.HttpStatus)
+	assert.Contains(t, errResp.Message, "cannot be published")
 }
