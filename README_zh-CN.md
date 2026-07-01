@@ -4,8 +4,9 @@
 [![Build Status](https://github.com/scagogogo/sonatype-central-sdk/actions/workflows/go-test.yml/badge.svg)](https://github.com/scagogogo/sonatype-central-sdk/actions/workflows/go-test.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/scagogogo/sonatype-central-sdk)](https://goreportcard.com/report/github.com/scagogogo/sonatype-central-sdk)
 [![License: MIT](https://img.shields.io/github/license/scagogogo/sonatype-central-sdk)](https://github.com/scagogogo/sonatype-central-sdk/blob/main/LICENSE)
+[![Website](https://img.shields.io/badge/website-docs-3c8cff)](https://scagogogo.github.io/sonatype-central-skills/)
 
-**[English](README.md)**
+**[English](README.md)** · **[📚 官方文档](https://scagogogo.github.io/sonatype-central-skills/)** · **[🤖 AI Agent 接入](https://scagogogo.github.io/sonatype-central-skills/ai-agent/)**
 
 一个全面、类型安全的 Go SDK，用于 [Sonatype Central Repository API](https://central.sonatype.org/search/rest-api-guide/)。通过简洁、符合 Go 习惯的接口搜索、下载和发布 Maven 制品。
 

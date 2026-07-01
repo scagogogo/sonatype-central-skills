@@ -4,8 +4,9 @@
 [![Build Status](https://github.com/scagogogo/sonatype-central-sdk/actions/workflows/go-test.yml/badge.svg)](https://github.com/scagogogo/sonatype-central-sdk/actions/workflows/go-test.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/scagogogo/sonatype-central-sdk)](https://goreportcard.com/report/github.com/scagogogo/sonatype-central-sdk)
 [![License: MIT](https://img.shields.io/github/license/scagogogo/sonatype-central-sdk)](https://github.com/scagogogo/sonatype-central-sdk/blob/main/LICENSE)
+[![Website](https://img.shields.io/badge/website-docs-3c8cff)](https://scagogogo.github.io/sonatype-central-skills/)
 
-**[简体中文](README_zh-CN.md)**
+**[简体中文](README_zh-CN.md)** · **[📚 官方文档](https://scagogogo.github.io/sonatype-central-skills/)** · **[🤖 AI Agent 接入](https://scagogogo.github.io/sonatype-central-skills/ai-agent/)**
 
 A comprehensive, type-safe Go SDK for the [Sonatype Central Repository API](https://central.sonatype.org/search/rest-api-guide/). Search, download, and publish Maven artifacts with a clean and idiomatic Go interface.
 
