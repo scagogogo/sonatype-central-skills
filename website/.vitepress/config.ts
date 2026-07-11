@@ -1,7 +1,9 @@
-import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
 // https://vitepress.dev/reference/site-config
-export default defineConfig({
+// withMermaid 直接接收 VitePress 配置对象（含 mermaid 字段），
+// 无需 defineConfig 包装 —— 包装会干扰插件对 markdown.config 的注入。
+export default withMermaid({
   lang: 'zh-CN',
   title: 'Sonatype Central SDK',
   description: '一个全面、类型安全的 Go SDK，用于 Sonatype Central Repository API — 搜索、下载、发布 Maven 制品',
@@ -19,7 +21,7 @@ export default defineConfig({
   themeConfig: {
     // 站点级别的社交链接
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/scagogogo/sonatype-central-sdk' },
+      { icon: 'github', link: 'https://github.com/scagogogo/sonatype-central-skills' },
     ],
 
     search: {
@@ -50,7 +52,7 @@ export default defineConfig({
       { text: 'API', link: '/api/search', activeMatch: '/api/' },
       {
         text: 'GitHub',
-        link: 'https://github.com/scagogogo/sonatype-central-sdk',
+        link: 'https://github.com/scagogogo/sonatype-central-skills',
       },
     ],
 
@@ -133,7 +135,7 @@ export default defineConfig({
 
     // 编辑此页链接
     editLink: {
-      pattern: 'https://github.com/scagogogo/sonatype-central-sdk/edit/main/website/:path',
+      pattern: 'https://github.com/scagogogo/sonatype-central-skills/edit/main/website/:path',
       text: '在 GitHub 上编辑此页',
     },
 

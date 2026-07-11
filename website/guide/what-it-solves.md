@@ -62,10 +62,16 @@ data, checksum, err := client.DownloadWithVerifiedChecksum(ctx, path, "sha1")
 
 发布到 Maven Central 不是一次 HTTP 调用，而是一个**异步状态机**：
 
-```
-上传 bundle → PENDING → VALIDATING → VALIDATED → PUBLISHING → PUBLISHED
-                                        ↓ (失败)
-                                      FAILED
+```mermaid
+stateDiagram-v2
+  [*] --> PENDING: UploadBundle
+  PENDING --> VALIDATING
+  VALIDATING --> VALIDATED: 校验通过
+  VALIDATING --> FAILED: 校验失败
+  VALIDATED --> PUBLISHING: PublishDeployment
+  PUBLISHING --> PUBLISHED
+  PUBLISHED --> [*]
+  FAILED --> [*]: DropDeployment
 ```
 
 你需要：上传 → 轮询状态 → 校验通过后发布 → 继续轮询直到 PUBLISHED。每一步的 HTTP 方法、参数、响应体都不同。

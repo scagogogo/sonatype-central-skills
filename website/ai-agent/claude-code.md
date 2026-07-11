@@ -14,8 +14,8 @@
 请使用开源 Go SDK `github.com/scagogogo/sonatype-central-sdk` 来完成，按以下步骤引导我：
 
 1. 【了解能力】先访问并阅读官方文档，理解这个 SDK 提供了哪些能力：
-   - 官网：https://scagogogo.github.io/sonatype-central-sdk/
-   - GitHub：https://github.com/scagogogo/sonatype-central-sdk
+   - 官网：https://scagogogo.github.io/sonatype-central-skills/
+   - GitHub：https://github.com/scagogogo/sonatype-central-skills
    - 重点看 pkg/api 目录下 Client（搜索/下载，无需认证）和 PublisherClient（发布，需 Token）的方法签名
 
 2. 【安装】在当前项目目录执行 `go get github.com/scagogogo/sonatype-central-sdk`
@@ -99,7 +99,7 @@
 ## Maven Central 依赖操作
 
 本项目使用 `github.com/scagogogo/sonatype-central-sdk` 处理 Maven 制品的搜索、下载、发布。
-- 文档：https://scagogogo.github.io/sonatype-central-sdk/
+- 文档：https://scagogogo.github.io/sonatype-central-skills/
 - 搜索/下载用 `api.NewClient()`（无需认证）
 - 发布用 `api.NewPublisherClient(api.WithPublisherToken(os.Getenv("SONATYPE_TOKEN")))`
 - 发布遵循状态机：UploadBundle → 轮询 GetDeploymentStatus → PublishDeployment

@@ -63,6 +63,25 @@ b, _ := f2.Await()
 
 当结果集可能很大（如遍历某个大 Group 下所有制品），用迭代器**懒加载**，避免一次性把全部结果载入内存：
 
+```mermaid
+sequenceDiagram
+  participant App as 你的代码
+  participant Iter as Iterator
+  participant API as Maven Central API
+  App->>Iter: HasNext()
+  Iter->>Iter: 本地缓冲还有?
+  alt 缓冲非空
+    Iter-->>App: true
+  else 缓冲已空
+    Iter->>API: 请求下一页(start += rows)
+    API-->>Iter: 返回 N 条
+    Iter->>Iter: 存入本地缓冲
+    Iter-->>App: true（若仍有）
+  end
+  App->>Iter: Next()
+  Iter-->>App: 取缓冲首条并弹出
+```
+
 ```go
 iter := client.IteratorByGroupId(ctx, "org.apache.commons")
 for iter.HasNext() {

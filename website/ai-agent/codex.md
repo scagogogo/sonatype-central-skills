@@ -16,8 +16,8 @@ You are a senior Go developer. I need to use the Sonatype Central Repository cap
 Please use the open-source Go SDK `github.com/scagogogo/sonatype-central-sdk` and guide me through these steps:
 
 1. [Understand capabilities] Read the official docs to learn what this SDK offers:
-   - Website: https://scagogogo.github.io/sonatype-central-sdk/
-   - GitHub: https://github.com/scagogogo/sonatype-central-sdk
+   - Website: https://scagogogo.github.io/sonatype-central-skills/
+   - GitHub: https://github.com/scagogogo/sonatype-central-skills
    - Focus on the method signatures of `Client` (search/download, no auth) and `PublisherClient` (publishing, needs token) in the `pkg/api` directory.
 
 2. [Install] Run `go get github.com/scagogogo/sonatype-central-sdk` in the current project directory.

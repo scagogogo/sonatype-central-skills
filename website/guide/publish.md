@@ -31,15 +31,17 @@ publisher := api.NewPublisherClient(
 
 Maven Central 的发布是一个**异步状态机**：
 
-```
-        UploadBundle
-            │
-            ▼
-        ┌────────┐  ┌───────────┐  ┌───────────┐  ┌────────────┐  ┌──────────┐
-        │PENDING │→│VALIDATING │→│VALIDATED  │→│PUBLISHING  │→│PUBLISHED │
-        └────────┘  └───────────┘  └───────────┘  └────────────┘  └──────────┘
-                          │             │
-                          └─────────────┴──→ FAILED
+```mermaid
+stateDiagram-v2
+  [*] --> PENDING: UploadBundle
+  PENDING --> VALIDATING
+  VALIDATING --> VALIDATED: 校验通过
+  VALIDATING --> FAILED: 校验失败
+  VALIDATED --> PUBLISHING: PublishDeployment（仅 USER_MANAGED）
+  VALIDATED --> [*]: DropDeployment
+  PUBLISHING --> PUBLISHED
+  PUBLISHED --> [*]
+  FAILED --> [*]: DropDeployment
 ```
 
 ### 1. 上传部署包

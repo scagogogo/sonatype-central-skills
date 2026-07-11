@@ -18,7 +18,7 @@ hero:
       link: /ai-agent/
     - theme: alt
       text: GitHub
-      link: https://github.com/scagogogo/sonatype-central-sdk
+      link: https://github.com/scagogogo/sonatype-central-skills
 
 features:
   - icon: 🔍
@@ -56,7 +56,7 @@ features:
 
 请按以下步骤引导我：
 
-1. 阅读官方文档了解能力：https://scagogogo.github.io/sonatype-central-sdk/  和  https://github.com/scagogogo/sonatype-central-sdk
+1. 阅读官方文档了解能力：https://scagogogo.github.io/sonatype-central-skills/  和  https://github.com/scagogogo/sonatype-central-skills
 2. 在当前 Go 项目中执行 `go get github.com/scagogogo/sonatype-central-sdk` 安装 SDK
 3. 根据我要实现的功能，选择合适的包导入：
    - 搜索/下载：`github.com/scagogogo/sonatype-central-sdk/pkg/api`（`api.NewClient()`）

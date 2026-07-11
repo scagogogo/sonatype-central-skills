@@ -52,8 +52,8 @@
 
 请使用开源 Go SDK `github.com/scagogogo/sonatype-central-sdk`：
 
-1. 先读官方文档了解能力：https://scagogogo.github.io/sonatype-central-sdk/
-   以及 GitHub README：https://github.com/scagogogo/sonatype-central-sdk
+1. 先读官方文档了解能力：https://scagogogo.github.io/sonatype-central-skills/
+   以及 GitHub README：https://github.com/scagogogo/sonatype-central-skills
 2. 执行 `go get github.com/scagogogo/sonatype-central-sdk` 安装
 3. 按需导入 `github.com/scagogogo/sonatype-central-sdk/pkg/api`
    - 搜索/下载：`api.NewClient()`（无需认证）

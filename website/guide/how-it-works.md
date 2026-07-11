@@ -6,19 +6,27 @@
 
 SDK 采用经典的**三层架构**：
 
-```
-┌─────────────────────────────────────────────┐
-│  你的应用代码                                  │
-├─────────────────────────────────────────────┤
-│  pkg/api        ← 业务方法（搜索/下载/发布）   │
-├─────────────────────────────────────────────┤
-│  pkg/request    ← 请求构建器（Solr 参数封装）   │
-│  pkg/response   ← 响应类型（强类型结构体）      │
-├─────────────────────────────────────────────┤
-│  底层 HTTP 客户端（带重试/缓存/限流）           │
-├─────────────────────────────────────────────┤
-│  Sonatype Central / Maven Central REST API    │
-└─────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  subgraph App["你的应用代码"]
+    direction TB
+  end
+  subgraph API["pkg/api — 业务方法（搜索 / 下载 / 发布）"]
+    direction TB
+  end
+  subgraph Layer["pkg/request — 请求构建器（Solr 参数封装）<br/>pkg/response — 响应类型（强类型结构体）"]
+    direction TB
+  end
+  subgraph HTTP["底层 HTTP 客户端（带重试 / 缓存 / 限流）"]
+    direction TB
+  end
+  subgraph Upstream["Sonatype Central / Maven Central REST API"]
+    direction TB
+  end
+  App --> API
+  API --> Layer
+  Layer --> HTTP
+  HTTP --> Upstream
 ```
 
 - **`pkg/api`**：暴露给用户的高层方法。两类客户端：`Client`（搜索/下载，无需认证）和 `PublisherClient`（发布，需认证）。
@@ -50,6 +58,28 @@ client := api.NewPublisherClient(
 ```
 
 认证通过**选项函数**（functional options）配置，这是 Go 社区惯用的可扩展配置模式。
+
+### 一次搜索调用的内部流转
+
+以 `client.SearchByGroupId(ctx, "org.apache.commons", 10)` 为例，从你的调用到拿到结果，SDK 内部经历了这些步骤：
+
+```mermaid
+flowchart LR
+  A["你的代码<br/>SearchByGroupId"] --> B["pkg/api<br/>构造 Solr 查询参数"]
+  B --> C["拼 URL + 发 HTTP 请求"]
+  C --> D{"缓存命中?"}
+  D -->|"是"| R["直接返回缓存结果"]
+  D -->|"否"| E["发送请求到 search.maven.org"]
+  E --> F{"HTTP 429 / 5xx?"}
+  F -->|"是"| G["指数退避后重试"]
+  G --> E
+  F -->|"否"| H["拿到 JSON 响应"]
+  H --> I["pkg/response<br/>解析为强类型结构体"]
+  I --> R
+  R --> J["返回 []*Artifact"]
+```
+
+缓存、重试、分页都在底层透明完成，上层业务方法只管"调一次、拿结果"。
 
 ## 关键技术决策
 

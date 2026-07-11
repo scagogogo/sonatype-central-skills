@@ -52,6 +52,16 @@ checksum, _ := client.DownloadChecksumFile(ctx,
 
 一行完成"下载文件 + 下载校验和 + 本地计算哈希 + 比对"四步：
 
+```mermaid
+flowchart TD
+  A["client.DownloadWithVerifiedChecksum(ctx, path, 'sha1')"] --> B["下载文件本体 bytes"]
+  B --> C["下载同名 .sha1 校验和文件"]
+  C --> D["本地计算 bytes 的 SHA1"]
+  D --> E{"本地哈希 == 校验和?"}
+  E -->|"是"| F["返回 (data, checksum) ✓"]
+  E -->|"否"| G["返回 error: 校验失败 ✗"]
+```
+
 ```go
 data, checksum, err := client.DownloadWithVerifiedChecksum(ctx,
     "org/apache/commons/commons-lang3/3.12.0/commons-lang3-3.12.0.jar",

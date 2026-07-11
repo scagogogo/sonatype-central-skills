@@ -60,11 +60,11 @@ Token 用于 Bearer 认证（`WithPublisherToken`）或 Basic Auth（`WithPublis
 
 欢迎 PR。流程：
 
-1. Fork [仓库](https://github.com/scagogogo/sonatype-central-sdk)
+1. Fork [仓库](https://github.com/scagogogo/sonatype-central-skills)
 2. 创建特性分支
 3. 确保通过 `go test ./...`
 4. 提交 PR，描述清楚改动
 
 ### 发现 Bug 或缺能力？
 
-在 [GitHub Issues](https://github.com/scagogogo/sonatype-central-sdk/issues) 提交，附上复现步骤和期望行为。
+在 [GitHub Issues](https://github.com/scagogogo/sonatype-central-skills/issues) 提交，附上复现步骤和期望行为。
