@@ -4,6 +4,10 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 // withMermaid 直接接收 VitePress 配置对象（含 mermaid 字段），
 // 无需 defineConfig 包装 —— 包装会干扰插件对 markdown.config 的注入。
 export default withMermaid({
+  // 站点部署在 GitHub Pages 子路径 /sonatype-central-skills/ 下，
+  // 必须显式声明 base，否则所有 CSS/JS/图片资源会锚定域名根路径而 404，
+  // 导致布局错乱（无样式裸 HTML）。VitePress 默认 base 为 '/'，仅适用于根域名部署。
+  base: '/sonatype-central-skills/',
   lang: 'zh-CN',
   title: 'Sonatype Central SDK',
   description: '一个全面、类型安全的 Go SDK，用于 Sonatype Central Repository API — 搜索、下载、发布 Maven 制品',
