@@ -82,6 +82,7 @@ export default withMermaid({
             { text: '发布到 Maven Central', link: '/guide/publish' },
             { text: '高级搜索', link: '/guide/advanced-search' },
             { text: '批量操作与迭代器', link: '/guide/batch-iterator' },
+            { text: '命令行工具（CLI）', link: '/guide/cli' },
           ],
         },
         {
