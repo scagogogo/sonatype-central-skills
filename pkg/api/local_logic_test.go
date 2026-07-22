@@ -415,10 +415,3 @@ func TestCacheTTLZero(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// ---- min (from group_test.go) ----
-
-func TestMin(t *testing.T) {
-	assert.Equal(t, 1, min(1, 2))
-	assert.Equal(t, 1, min(2, 1))
-	assert.Equal(t, 5, min(5, 5))
-}
