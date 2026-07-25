@@ -415,3 +415,21 @@ func TestCacheTTLZero(t *testing.T) {
 	assert.False(t, ok)
 }
 
+
+// ---- containsTag ----
+
+func TestContainsTagLocal(t *testing.T) {
+	assert.True(t, containsTag([]string{"spring", "boot"}, "spring"))
+	assert.True(t, containsTag([]string{"spring", "boot"}, "boot"))
+	assert.False(t, containsTag([]string{"spring", "boot"}, "none"))
+	assert.False(t, containsTag(nil, "anything"))
+	assert.False(t, containsTag([]string{}, "anything"))
+}
+
+// ---- createRealClient ----
+
+func TestCreateRealClient(t *testing.T) {
+	c := createRealClient(t)
+	assert.NotNil(t, c)
+	assert.True(t, c.GetCacheTTL() > 0)
+}

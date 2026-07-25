@@ -288,10 +288,6 @@ func TestMockBatchDownloadFiles(t *testing.T) {
 	assert.NotEmpty(t, results)
 }
 
-func TestMockDownloadWithVerifiedChecksum(t *testing.T) {
-	t.Skip("requires complex multi-step mock")
-}
-
 // ========================================================================
 // advanced_search.go — AdvancedSearch, BatchSearch, GetArtifactMetadata, etc.
 // ========================================================================
@@ -338,14 +334,6 @@ func TestMockGetArtifactMetadata(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, meta)
 	assert.Equal(t, "g", meta.GroupId)
-}
-
-func TestMockSearchByGroupPattern(t *testing.T) {
-	t.Skip("complex multi-step mock")
-}
-
-func TestMockSearchSubgroups(t *testing.T) {
-	t.Skip("complex multi-step mock")
 }
 
 func TestMockSearchWithSpellcheck(t *testing.T) {
@@ -413,14 +401,6 @@ func TestMockSearchByTagPrefix(t *testing.T) {
 	results, err := c.SearchByTagPrefix(context.Background(), "spring", 10)
 	assert.NoError(t, err)
 	assert.Len(t, results, 1)
-}
-
-func TestMockSearchByTagWithGroupFilter(t *testing.T) {
-	t.Skip("complex multi-step mock")
-}
-
-func TestMockSearchArtifactsWithAllTags(t *testing.T) {
-	t.Skip("complex multi-step mock")
 }
 
 func TestMockSearchByMultipleTags(t *testing.T) {
@@ -528,10 +508,6 @@ func TestMockCompareTwoGroups(t *testing.T) {
 	comp, err := c.CompareTwoGroups(context.Background(), "g1", "g2")
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
-}
-
-func TestMockGetPopularGroups(t *testing.T) {
-	t.Skip("complex multi-step mock")
 }
 
 // ========================================================================
@@ -685,10 +661,6 @@ func TestMockCountVersions(t *testing.T) {
 	n, err := c.CountVersions(context.Background(), "g", "a")
 	assert.NoError(t, err)
 	assert.Equal(t, 2, n)
-}
-
-func TestMockFilterVersions(t *testing.T) {
-	t.Skip("complex multi-step mock")
 }
 
 func TestMockGetVersionInfo(t *testing.T) {
@@ -944,10 +916,6 @@ func TestMockGetComponentVulnerabilityOverview(t *testing.T) {
 	assert.NotNil(t, overview)
 }
 
-func TestMockFindSimilarVulnerableArtifacts(t *testing.T) {
-	t.Skip("complex multi-step mock")
-}
-
 func TestMockCheckCVEImpact(t *testing.T) {
 	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1088,10 +1056,6 @@ func TestMockAsyncSearchByGroup(t *testing.T) {
 	assert.NotEmpty(t, result.Result)
 }
 
-func TestMockAsyncGetArtifactMetadata(t *testing.T) {
-	t.Skip("async goroutine lifecycle issue with mock")
-}
-
 // ========================================================================
 // licensee.go — FindLicenseConflicts, GenerateLicenseReport, etc. (Client methods)
 // ========================================================================
@@ -1132,10 +1096,6 @@ func TestMockPublisherListDeployments(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, list)
 	assert.Len(t, list.Deployments, 1)
-}
-
-func TestMockPublisherBrowseDeployment(t *testing.T) {
-	t.Skip("complex multi-step mock")
 }
 
 func TestMockPublisherCheckPublished(t *testing.T) {
@@ -1196,17 +1156,9 @@ func TestMockPublisherDownloadDeploymentFile(t *testing.T) {
 	assert.NotEmpty(t, data)
 }
 
-func TestMockPublisherBrowseDeploymentWithOptions(t *testing.T) {
-	t.Skip("complex multi-step mock")
-}
-
 // ========================================================================
 // batch.go — BatchDownloadDependencies, BatchSearchArtifacts
 // ========================================================================
-
-func TestMockBatchDownloadDependencies(t *testing.T) {
-	t.Skip("complex multi-step mock")
-}
 
 func TestMockBatchSearchArtifacts(t *testing.T) {
 	callCount := 0
@@ -1483,4 +1435,273 @@ func TestMockDownloadToWriter(t *testing.T) {
 	err := c.DownloadToWriter(context.Background(), "g/a/1.0/a-1.0.jar", &buf)
 	assert.NoError(t, err)
 	assert.Equal(t, "writer-content", buf.String())
+}
+
+
+// ========================================================================
+// Iterator Next()/Value() wrappers
+// ========================================================================
+
+func TestMockIteratorNextValue(t *testing.T) {
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	})
+	sr := request.NewSearchRequest().SetLimit(5).SetQuery(request.NewQuery().SetGroupId("g"))
+	it := NewSearchIterator[*response.Artifact](sr).WithClient(c)
+	assert.True(t, it.Next())
+	v := it.Value()
+	assert.NotNil(t, v)
+}
+
+// ========================================================================
+// SearchRequestJson alias
+// ========================================================================
+
+func TestMockSearchRequestJsonAlias(t *testing.T) {
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"response":{"numFound":1,"start":0,"docs":[{"id":"g:a:1.0","g":"g","a":"a","v":"1.0"}]}}`))
+	})
+	sr := request.NewSearchRequest().SetLimit(5).SetQuery(request.NewQuery().SetGroupId("g"))
+	resp, err := SearchRequestJson[*response.Artifact](c, context.Background(), sr)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, resp.ResponseBody.NumFound)
+}
+
+// ========================================================================
+// IteratorByArtifactId, IteratorByGroupAndArtifactId, AdvancedSearchIterator
+// ========================================================================
+
+func TestMockIteratorByArtifactId(t *testing.T) {
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	})
+	it := c.IteratorByArtifactId(context.Background(), "a").WithClient(c)
+	assert.NotNil(t, it)
+}
+
+func TestMockIteratorByGroupAndArtifactId(t *testing.T) {
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	})
+	it := c.IteratorByGroupAndArtifactId(context.Background(), "g", "a").WithClient(c)
+	assert.NotNil(t, it)
+}
+
+func TestMockAdvancedSearchIterator(t *testing.T) {
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	})
+	opts := request.NewAdvancedSearchOptions().SetGroupId("g").SetArtifactId("a")
+	it := c.AdvancedSearchIterator(context.Background(), opts).WithClient(c)
+	assert.NotNil(t, it)
+}
+
+// ========================================================================
+// SearchByText (classifier_search.go)
+// ========================================================================
+
+func TestMockSearchByTextClassifier(t *testing.T) {
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	})
+	results, err := c.SearchByText(context.Background(), "hello", 10)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+}
+
+// ========================================================================
+// RateLimiter methods
+// ========================================================================
+
+func TestMockRateLimiterGetStats(t *testing.T) {
+	rl := NewRateLimiter()
+	_, _ = rl.WaitForRateLimit(context.Background(), "h", "search")
+	stats := rl.GetStats()
+	assert.NotNil(t, stats)
+	assert.True(t, stats["stats_enabled"].(bool))
+}
+
+func TestMockRateLimiterGetTotalRequestCount(t *testing.T) {
+	rl := NewRateLimiter()
+	_, _ = rl.WaitForRateLimit(context.Background(), "h", "search")
+	assert.Equal(t, int64(1), rl.GetTotalRequestCount("h"))
+}
+
+func TestMockRateLimiterGetRequestCountByType(t *testing.T) {
+	rl := NewRateLimiter()
+	_, _ = rl.WaitForRateLimit(context.Background(), "h", "search")
+	assert.Equal(t, int64(1), rl.GetRequestCountByType("h", "search"))
+}
+
+func TestMockRateLimiterResetStats(t *testing.T) {
+	rl := NewRateLimiter()
+	_, _ = rl.WaitForRateLimit(context.Background(), "h", "search")
+	rl.ResetStats()
+	assert.Equal(t, int64(0), rl.GetTotalRequestCount("h"))
+}
+
+func TestMockRateLimiterDisabledStats(t *testing.T) {
+	config := DefaultRateLimitConfig
+	config.EnableStats = false
+	rl := NewRateLimiterWithConfig(config)
+	_, _ = rl.WaitForRateLimit(context.Background(), "h", "search")
+	assert.Equal(t, int64(0), rl.GetTotalRequestCount("h"))
+	assert.Equal(t, int64(0), rl.GetRequestCountByType("h", "search"))
+	stats := rl.GetStats()
+	assert.False(t, stats["stats_enabled"].(bool))
+}
+
+// ========================================================================
+// Async methods
+// ========================================================================
+
+func TestMockAsyncSearchRequest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"response":{"numFound":1,"start":0,"docs":[{"id":"g:a:1.0","g":"g","a":"a","v":"1.0"}]}}`))
+	}))
+	defer srv.Close()
+	c := NewClient(WithBaseURL(srv.URL), WithRepoBaseURL(srv.URL), WithHTTPClient(srv.Client()), WithMaxRetries(1), WithRetryBackoff(1), WithCache(false, 0))
+	ch := AsyncSearchRequest[*response.Artifact](c, context.Background(), request.NewSearchRequest().SetLimit(5).SetQuery(request.NewQuery().SetGroupId("g")))
+	r := <-ch
+	assert.NoError(t, r.Error)
+	assert.NotNil(t, r.Result)
+}
+
+func TestMockAsyncSearchRequestDoc(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"response":{"numFound":1,"start":0,"docs":[{"id":"g:a:1.0","g":"g","a":"a","v":"1.0"}]}}`))
+	}))
+	defer srv.Close()
+	c := NewClient(WithBaseURL(srv.URL), WithRepoBaseURL(srv.URL), WithHTTPClient(srv.Client()), WithMaxRetries(1), WithRetryBackoff(1), WithCache(false, 0))
+	ch := AsyncSearchRequestDoc[*response.Artifact](c, context.Background(), request.NewSearchRequest().SetLimit(5).SetQuery(request.NewQuery().SetGroupId("g")))
+	r := <-ch
+	assert.NoError(t, r.Error)
+	assert.NotNil(t, r.Result)
+}
+
+func TestMockAsyncSearchByGroupId(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	}))
+	defer srv.Close()
+	c := NewClient(WithBaseURL(srv.URL), WithRepoBaseURL(srv.URL), WithHTTPClient(srv.Client()), WithMaxRetries(1), WithRetryBackoff(1), WithCache(false, 0))
+	ch := c.AsyncSearchByGroupId(context.Background(), "g", 10)
+	r := <-ch
+	assert.NoError(t, r.Error)
+	assert.NotEmpty(t, r.Result)
+}
+
+func TestMockAsyncSearchByArtifactId(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	}))
+	defer srv.Close()
+	c := NewClient(WithBaseURL(srv.URL), WithRepoBaseURL(srv.URL), WithHTTPClient(srv.Client()), WithMaxRetries(1), WithRetryBackoff(1), WithCache(false, 0))
+	ch := c.AsyncSearchByArtifactId(context.Background(), "a", 10)
+	r := <-ch
+	assert.NoError(t, r.Error)
+	assert.NotEmpty(t, r.Result)
+}
+
+func TestMockBatchAsyncSearch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	}))
+	defer srv.Close()
+	c := NewClient(WithBaseURL(srv.URL), WithRepoBaseURL(srv.URL), WithHTTPClient(srv.Client()), WithMaxRetries(1), WithRetryBackoff(1), WithCache(false, 0))
+	ch := c.BatchAsyncSearch(context.Background(), []*request.SearchRequest{request.NewSearchRequest().SetLimit(5).SetQuery(request.NewQuery().SetGroupId("g"))})
+	r := <-ch
+	assert.NoError(t, r.Error)
+	assert.NotEmpty(t, r.Result)
+}
+
+func TestMockAsyncBatchDownload(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte("data"))
+	}))
+	defer srv.Close()
+	c := NewClient(WithBaseURL(srv.URL), WithRepoBaseURL(srv.URL), WithHTTPClient(srv.Client()), WithMaxRetries(1), WithRetryBackoff(1), WithCache(false, 0))
+	ch := c.AsyncBatchDownload(context.Background(), []string{"g/a/1.0/a-1.0.jar"})
+	r := <-ch
+	assert.NoError(t, r.Error)
+	assert.NotEmpty(t, r.Result)
+}
+
+// ========================================================================
+// Multi-step methods — skipped
+// ========================================================================
+
+func TestMockSearchByGroupPattern(t *testing.T) {
+	t.Skip("multi-step: calls SearchRequest with map result")
+}
+
+func TestMockGetPopularGroups(t *testing.T) {
+	t.Skip("multi-step: facet query with map result")
+}
+
+func TestMockSearchSubgroups(t *testing.T) {
+	t.Skip("multi-step: calls SearchRequest with map result")
+}
+
+func TestMockSearchArtifactsWithAllTags(t *testing.T) {
+	t.Skip("multi-step: calls SearchByTag internally")
+}
+
+func TestMockSearchByTagWithGroupFilter(t *testing.T) {
+	t.Skip("multi-step: calls SearchByTag internally")
+}
+
+func TestMockFindSimilarVulnerableArtifacts(t *testing.T) {
+	t.Skip("multi-step: calls GetVulnerabilityDetails internally")
+}
+
+func TestMockFilterVersions(t *testing.T) {
+	t.Skip("multi-step: calls ListVersions internally")
+}
+
+func TestMockDownloadWithChecksum(t *testing.T) {
+	t.Skip("multi-step: requires matching SHA1 verification")
+}
+
+func TestMockDownloadWithVerifiedChecksum(t *testing.T) {
+	t.Skip("multi-step: requires matching SHA1 verification")
+}
+
+func TestMockBatchDownloadDependencies(t *testing.T) {
+	t.Skip("multi-step: downloads multiple files")
+}
+
+func TestMockAsyncGetArtifactMetadata(t *testing.T) {
+	t.Skip("async goroutine lifecycle issue with mock")
+}
+
+func TestMockPublisherBrowseDeployment(t *testing.T) {
+	t.Skip("multi-step: requires Publisher API flow")
+}
+
+func TestMockPublisherBrowseDeploymentWithOptions(t *testing.T) {
+	t.Skip("multi-step: requires Publisher API flow")
 }
