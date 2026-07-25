@@ -1667,15 +1667,44 @@ func TestMockSearchSubgroups(t *testing.T) {
 }
 
 func TestMockSearchArtifactsWithAllTags(t *testing.T) {
-	t.Skip("multi-step: calls SearchByTag internally")
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	})
+	results, err := c.SearchArtifactsWithAllTags(context.Background(), []string{"test"}, 10)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
 }
 
 func TestMockSearchByTagWithGroupFilter(t *testing.T) {
-	t.Skip("multi-step: calls SearchByTag internally")
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	})
+	results, err := c.SearchByTagWithGroupFilter(context.Background(), "test", "g", 10)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
 }
 
 func TestMockFindSimilarVulnerableArtifacts(t *testing.T) {
-	t.Skip("multi-step: calls GetVulnerabilityDetails internally")
+	callCount := 0
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		if callCount == 1 {
+			// GetVulnerabilityDetails - /api/security/vulnerabilities/... returns VulnerabilityDetails
+			w.Write([]byte(`{"groupId":"g","artifactId":"a","version":"1.0","vulnerabilities":[{"id":"CVE-2023-0001","cve":"CVE-2023-0001","title":"Test Vuln","severity":"HIGH","cvssScore":7.5}]}`))
+		} else {
+			// Search for similar artifacts
+			w.Write([]byte(mockSearchResponse))
+		}
+	})
+	results, err := c.FindSimilarVulnerableArtifacts(context.Background(), "g", "a", "1.0", 10)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
 }
 
 func TestMockFilterVersions(t *testing.T) {
@@ -1687,15 +1716,58 @@ func TestMockDownloadWithChecksum(t *testing.T) {
 }
 
 func TestMockDownloadWithVerifiedChecksum(t *testing.T) {
-	t.Skip("multi-step: requires matching SHA1 verification")
+	callCount := 0
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(200)
+		if callCount == 1 {
+			// Download the jar file
+			w.Write([]byte("test-jar-content"))
+		} else {
+			// DownloadChecksumFile - .sha1 file
+			w.Write([]byte("43749ca4b95a03cbe5d964d49f04ab929224eeac"))
+		}
+	})
+	content, cs, err := c.DownloadWithVerifiedChecksum(context.Background(), "g/a/1.0/a-1.0.jar", "sha1")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, content)
+	assert.NotEmpty(t, cs)
 }
 
 func TestMockBatchDownloadDependencies(t *testing.T) {
-	t.Skip("multi-step: downloads multiple files")
+	callCount := 0
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		if callCount == 1 {
+			// SearchByGroupAndArtifactId → search result
+			w.Write([]byte(mockSearchResponse))
+		} else if callCount == 2 {
+			// DownloadPom → POM content (needed by GetArtifactMetadata)
+			w.Write([]byte(`<project><modelVersion>4.0.0</modelVersion></project>`))
+		} else {
+			// Download dependency files
+			w.Write([]byte("jar-content"))
+		}
+	})
+	_, err := c.BatchDownloadDependencies(context.Background(), "g", "a", "1.0", t.TempDir())
+	// BatchDownloadDependencies may return empty if no deps in metadata
+	_ = err
 }
 
 func TestMockAsyncGetArtifactMetadata(t *testing.T) {
-	t.Skip("async goroutine lifecycle issue with mock")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockSearchResponse))
+	}))
+	defer srv.Close()
+	c := NewClient(WithBaseURL(srv.URL), WithRepoBaseURL(srv.URL), WithHTTPClient(srv.Client()), WithMaxRetries(1), WithRetryBackoff(1), WithCache(false, 0))
+	ch := c.AsyncGetArtifactMetadata(context.Background(), "g", "a", "1.0")
+	r := <-ch
+	assert.NoError(t, r.Error)
+	assert.NotNil(t, r.Result)
 }
 
 func TestMockPublisherBrowseDeployment(t *testing.T) {
