@@ -1655,15 +1655,36 @@ func TestMockAsyncBatchDownload(t *testing.T) {
 // ========================================================================
 
 func TestMockSearchByGroupPattern(t *testing.T) {
-	t.Skip("multi-step: calls SearchRequest with map result")
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"responseHeader":{"status":0,"QTime":1,"params":{"q":"g:com.ex*"}},"response":{"numFound":1,"start":0,"docs":[{"g":"com.example","a":"my-lib","v":"1.0","timestamp":1600000000000}]}}`))
+	})
+	results, err := c.SearchByGroupPattern(context.Background(), "com.ex*", 10)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, results)
 }
 
 func TestMockGetPopularGroups(t *testing.T) {
-	t.Skip("multi-step: facet query with map result")
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"responseHeader":{"status":0,"QTime":1,"params":{"q":"*:*","facet":"true","facet.field":"g","facet.limit":"10","rows":"0"}},"response":{"numFound":100,"start":0,"docs":[]},"facet_counts":{"facet_fields":{"g":["org.apache",30,"com.google",25]}}}`))
+	})
+	results, err := c.GetPopularGroups(context.Background(), 10)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, results)
 }
 
 func TestMockSearchSubgroups(t *testing.T) {
-	t.Skip("multi-step: calls SearchRequest with map result")
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"responseHeader":{"status":0,"QTime":1,"params":{"q":"g:com.example.*"}},"response":{"numFound":1,"start":0,"docs":[{"g":"com.example.sub","a":"lib","v":"1.0","timestamp":1600000000000}]}}`))
+	})
+	results, err := c.SearchSubgroups(context.Background(), "com.example", 10)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, results)
 }
 
 func TestMockSearchArtifactsWithAllTags(t *testing.T) {
@@ -1708,11 +1729,33 @@ func TestMockFindSimilarVulnerableArtifacts(t *testing.T) {
 }
 
 func TestMockFilterVersions(t *testing.T) {
-	t.Skip("multi-step: calls ListVersions internally")
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(mockVersionResponse))
+	})
+	results, err := c.FilterVersions(context.Background(), "g", "a", func(v *response.Version) bool {
+		return v.Version == "1.0.0"
+	})
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
 }
 
 func TestMockDownloadWithChecksum(t *testing.T) {
-	t.Skip("multi-step: requires matching SHA1 verification")
+	callCount := 0
+	c := newMockClient(t, func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(200)
+		if callCount == 1 {
+			w.Write([]byte("test-jar-content"))
+		} else {
+			w.Write([]byte("43749ca4b95a03cbe5d964d49f04ab929224eeac"))
+		}
+	})
+	content, cs, err := c.DownloadWithChecksum(context.Background(), "g/a/1.0/a-1.0.jar", "sha1")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, content)
+	assert.NotEmpty(t, cs)
 }
 
 func TestMockDownloadWithVerifiedChecksum(t *testing.T) {
